@@ -9,19 +9,23 @@ library(combinat)
 install.packages("arules")
 
 install.packages("igraph")
-install.packages("combinat")
-install.packages("tm")
 
+install.packages("combinat")
+#ÀüÃ³¸® ÆĞÅ°Áö
+install.packages("tm")
+install.packages("slam")
+library(slam)
 library(tm)
 #library(stringr)
 
 #text cleaning
 install.packages("qdap")
 library(qdap)
+library(Nippon)
 #install.packages("textclean")
 
-#library(textclean)
-
+library(textclean)
+install.packages("Nippon")
 
 #¿øº»µ¥ÀÌÅÍ ÀĞ±â 
 kpop<-read_excel("20180509_data_kpop_2017.xlsx")
@@ -32,20 +36,32 @@ kpop_2017<-subset(kpop,year__1 ==2017)
 kpop_2017<-subset(kpop_2017, select = c(Title, Description, Tags))
 kpop_2017 <-c(kpop_2017[,1],kpop_2017[,2],kpop_2017[,3])
 head(kpop_2017)
+write.table(kpop_2017,"kpop_2017.txt")
+
+
+g<-graph.data.frame(kpop_2017, directed = FALSE)
+
+plot(g)
+write.
 # Çà·ÄÀ» ¸¸µé±â À§ÇØ ¹®ÀÚ¿­ ÇÊ¤·
 f_2017<-as.character(kpop_2017)
+write.csv
+write.csv(f_2017, "f_2017.csv")
 
 
 
 # ¾à¾î¸¦ ¿ø·¡ ´Ü¾î·Î
 fl_2017 <- replace_contraction(f_2017)
 # ¶ç¾î¾²±â Á¦°Å
-fl_2017 <- stripWhitespace(fl_2017)°Å
+fl_2017 <- stripWhitespace(fl_2017)
 # ¼Ò¹®ÀÚ·Î
 fl_2017 <- tolower(fl_2017)
-fl_2017 <- replace_symbol(fl_2017)
+# stop words »èÁ¦ 
 fl_2017 <- removeWords(fl_2017, stopwords("en"))
-head(fl_2017, 10)
+zen2han(fl_2017)
+write.csv(fl_2017, "fl_2017.csv")
+write.table(fl_2017, "fl_2017.txt")
+head(fl_2017,1)
 class(fl_2017)
 sort(fl_2)
 corp=VCorpus(VectorSource(fl_2017))
@@ -55,106 +71,55 @@ inspect(corp)
 corp <- tm_map(corp, removePunctuation)
 corp <- tm_map(corp, removeNumbers)
 corp <- tm_map(corp, PlainTextDocument)
+corp <- tm_map(corp, removeWords, "")
 corp <- tm_map(corp, removeWords, stopwords('en'))
 class(corp)
+View(corp)
 
 
 
-tdm<-TermDocumentMatrix(corp)
-inspect(tdm)
-# tdm <- removeSparseTerms(tdm, 0.8)
-N <- 1000
-tdm <-findFreqTerms(tdm, N)
-sort(tdm, decreasing = T)
-m2 <- as.matrix(tdm)
-m2
+tdm<-TermDocumentMatrix(corp, control = list(bounds = list(global = c(1,Inf))))
+tdm
+
+# Since the sparsity is so high, i.e. a proportion of cells with 0s/ cells with other values is too large,
+# let's remove some of these low frequency terms
+tdm_rm_sparse <- removeSparseTerms(tdm, 0.995)
+# Print out tweets_dtm data
+tdm_rm_sparse
+
+m <- as.matrix(tdm_rm_sparse)
+View(m)
+
+adjmatrix<- m %*% t(m)
+g1 <-graph.adjacency(adjmatrix ,weighted = T, mode = "undirected")
+g2 <-simplify(g1)
+plot(g2)
+
+#È½¼ö¿¡ µû¶ó °¡ÁßÄ¡ ¹İ¿µÇÏ¿© Å©±â¸¦ ´Ù¸£°Ô ÇÏÀÚ
+#Á¤Á¡Àº ÇØ´ç ²ÀÁöÁ¡ÀÌ°í ´ë¹®ÀÚ V·Î Ç¥½Ã
+#¿§Áö´Â ±× ²ÀÁöÁ¡¿¡ ¿¬°áµÈ ¼±À¸·Î ´ë¹®ÀÚ E·Î Ç¥½Ã
+#°¢ Á¤Á¡º°·Î ¿§Áö¼ö¸¦ ÆÄ¾ÇÇÏ´Â ¸í·É¾î°¡ degree()
+V(g2)$degree <- degree(g2)
+V(g2)$label.cex <-3*(V(g2)$degree / max(V(g2)$degree))
+V(g2)$size <- 10*(V(g2)$degree / max(V(g2)$degree))
+E(g2)$width <- 2*(E(g2)$weight / max(E(g2)$weight))
+max(E(g2)$weight)
 
 
-# http://replet.tistory.com/17?category=667225
-# https://rpubs.com/ivan_berlocher/79849
-ko.words = function(doc){
-  d = str_split(doc, " ")[[1]]
-  
-  extracted = tolower(str_match(d, '([°¡-ÆRa-zA-Z]+)/[NVO]'))
-  keyword = extracted[,2]
-  keyword[!is,na(keyword)]
-}
+# ¸Å°³ Áß½É¼º
 
+# ³×Æ®¿öÅ© ³»¿¡¼­ ÇÑ Á¡ÀÌ ´ã´çÇÏ´Â ¸Å°³ÀÚ È¤Àº Áß°³ÀÚ ¿ªÇÒÀÇ Á¤µµ·Î¼­ Áß½É¼ºÀ» ÃøÁ¤ÇÏ´Â ¹æ¹ı
 
-options(mc.cores=1)
+# ex : A¿Í B´Â C¸¦ ÅëÇØ¼­¸¸ °ü°è¸¦ ¸ÎÀ» ¼ö ÀÖ´Ù¸é, C´Â ÀáÀçÀûÀ¸·Î ´Ù¸¥ »ç¶÷µé »çÀÌ¸¦ ÅëÁ¦ÇÏ´Â ¹®Áö±â ¿ªÇÒ
 
-cps = tm_map(cps, removeWords,c("com","www","https","http",
-"http","youtube","na"))
-
-# corpus¸¦ tdmÀ¸·Î º¯È¯ : ÃâÇöºóµµ counting
-tdm<-TermDocumentMatrix(cps, control=list(tokenize=ko.words,
-                                          
-tdm.matrix = as.matrix(tdm)
-
-word.count = rowSums(tdm.matrix)
-word.order = order(word.count, decreasing = T)
-freq.word = tdm.matrix[word.order[35:85],]
-rownames(tdm.matrix)[word.order[35:85]]
-qg <-qgraph(co.matrix,
-            labels = rownames(co.matrix),diag = F, layout='spring', edge.color='black', vsize=log(diag(co.matrix))*1.5)
-#corpus <- tm_map(corpus, removeWords, c("dont", "can", "what", "cant"))     # Æ¯Á¤ ´Ü¾î Á¦°Å - Ä³¸¯ÅÍ º¤ÅÍ·Î ÁöÁ¤
-
-#ÃâÃ³: http://pannacotta.tistory.com/51 [Shimmering Green]
-
-
-
-# http://replet.tistory.com/48?category=667225
-apply(kpop_2017, readLines)
-kpop_2017_txt <-
-
-
-g<-graph.data.frame(kpop_2017,directed=FALSE)
-
-plot(g)
-
-
-close(f)
-tran <- Map(extractNoun, fl_2017)
-tran <- unique(tran)
-tran <- sapply(tran, unique)
-tran <- sapply(tran, function(x) {Filter(function(y) {nchar(y) <= 4 && nchar(y) > 1 && is.hangul(y)},x)} )
-tran <- Filter(function(x){length(x) >= 2}, tran)
-names(tran) <- paste("Tr", 1:length(tran), sep="")
-wordtran <- as(tran, "transactions")
-
-#co-occurance table 
-wordtab <- crossTable(wordtran)
-
-
-ares <- apriori(wordtran, parameter=list(supp=0.05, conf=0.05))
-inspect(ares)
-rules <- labels(ares, ruleSep=" ")
-rules <- sapply(rules, strsplit, " ",  USE.NAMES=F)
-rulemat <- do.call("rbind", rules)
-
-# ares <- apriori(wordtran, parameter=list(supp=0.05, conf=0.05))
-# inspect(ares)
-# rules <- labels(ares, ruleSep="/", setStart="", setEnd="")
-# rules <- sapply(rules, strsplit, "/",  USE.NAMES=F)
-# rules <- Filter(function(x){!any(x == "")},rules)
-# rulemat <- do.call("rbind", rules)
-# rulequality <- quality(ares)
-# ruleg <- graph.edgelist(rulemat,directed=F)
-
-#plot for important pairs 
-ruleg <- graph.edgelist(rulemat[-c(1:16),],directed=F)
-plot.igraph(ruleg, vertex.label=V(ruleg)$name, vertex.label.cex=0.5, vertex.size=20, layout=layout.fruchterman.reingold.grid)
-
-
-#plot for all pairs
-# tranpairs <- sapply(tran, function(x){t(combn(x,2))})
-# sapply(tran,function(x){x })
-# edgelist  <- do.call("rbind", tranpairs)
-# edgelist <- unique(edgelist)
-# g <- graph.edgelist(edgelist, directed=F)
-# plot(g)
+#      ÇÑ ³ëµå°¡ ¿¬°á¸Á ³»ÀÇ ´Ù¸¥ ³ëµåµé »çÀÌÀÇ ÃÖ´Ù °æ·Î À§¿¡ À§Ä¡ÇÏ¸é ÇÒ ¼ö·Ï ¸Å°³ Áß½É¼ºÀÌ ³ô´Ù.
+btw<-betweenness(g2)
+btw.score<-round(btw)+1
+btw.colors<-rev(heat.colors(max(btw.score)))
+V(g2)$color<-btw.colors[btw.score]
 
 
 
 
-                                            
+
+plot(g2)
